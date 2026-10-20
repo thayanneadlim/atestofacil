@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ empresa.nome }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <h1 class="h3">{{ empresa.nome }}</h1>
+  <div>
+    <a href="{% url 'empresas:edit' empresa.pk %}" class="btn btn-outline-primary">Editar</a>
+    {% if empresa.pode_excluir %}<a href="{% url 'empresas:delete' empresa.pk %}" class="btn btn-outline-danger">Excluir</a>{% endif %}
+  </div>
+</div>
+<div class="stat-card col-lg-7">
+  <dl class="row mb-0">
+    <dt class="col-sm-4">CNPJ</dt><dd class="col-sm-8">{{ empresa.cnpj|default:"—" }}</dd>
+    <dt class="col-sm-4">Ativo</dt><dd class="col-sm-8">{% if empresa.ativo %}Sim{% else %}Não{% endif %}</dd>
+  </dl>
+</div>
+{% endblock %}

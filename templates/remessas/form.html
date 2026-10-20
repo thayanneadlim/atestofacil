@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{{ titulo }}</h1>
+<form method="post" class="row g-3">
+  {% csrf_token %}
+  <div class="col-lg-6">
+    <div class="stat-card">
+      {% for field in form %}
+        {% if field.name != 'dias_json' %}
+        <div class="mb-3">
+          <label class="form-label">{{ field.label }}</label>
+          {{ field }}
+          {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+        </div>
+        {% endif %}
+      {% endfor %}
+      {{ form.dias_json }}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="stat-card" data-calendario data-target="id_dias_json" data-list="dias_lista" data-total="total_horas">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-prev>&laquo;</button>
+        <strong data-month-label></strong>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-next>&raquo;</button>
+      </div>
+      <div class="mb-2 d-flex gap-2 align-items-center">
+        <label class="small mb-0">Horas padrão</label>
+        <input type="number" class="form-control form-control-sm w-auto" value="8" min="0.5" step="0.5" data-default-hours>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-apply-hours>Aplicar a todos</button>
+      </div>
+      <div class="calendar-grid mb-3" data-grid></div>
+      <h2 class="h6">Dias selecionados — Total: <span id="total_horas">0</span>h</h2>
+      <div id="dias_lista"></div>
+    </div>
+  </div>
+  <div class="col-12">
+    <button class="btn btn-primary" type="submit">Confirmar e gerar documentos</button>
+    <a href="{% url 'remessas:list' %}" class="btn btn-link">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Textos padrões{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <h1 class="h3">Textos padrões</h1>
+  <a href="{% url 'textos_padroes:create' %}" class="btn btn-primary">Novo texto</a>
+</div>
+<table class="table table-hover bg-white">
+  <thead><tr><th>Nome</th><th>Tipo</th><th>Ativo</th><th></th></tr></thead>
+  <tbody>
+  {% for t in textos %}
+    <tr>
+      <td><a href="{% url 'textos_padroes:detail' t.pk %}">{{ t.nome }}</a></td>
+      <td>{{ t.get_tipo_documento_display }}</td>
+      <td>{% if t.ativo %}Sim{% else %}Não{% endif %}</td>
+      <td class="text-end"><a href="{% url 'textos_padroes:edit' t.pk %}" class="btn btn-sm btn-outline-primary">Editar</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="text-muted">Nenhum texto cadastrado.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

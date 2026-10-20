@@ -1,0 +1,107 @@
+:root {
+  --navy: #1e3a5f;
+  --accent: #2f6fed;
+  --bg: #f3f6fb;
+}
+
+body {
+  background: linear-gradient(180deg, #e8eef8 0%, var(--bg) 220px, #f7f9fc 100%);
+  min-height: 100vh;
+  color: #1c2434;
+}
+
+.bg-navy { background-color: var(--navy) !important; }
+
+.stat-card {
+  background: #fff;
+  border: 1px solid #dbe3f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.table thead th {
+  background: #eef3fb;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35rem;
+}
+
+.calendar-day {
+  border: 1px solid #d5deec;
+  border-radius: 8px;
+  background: #fff;
+  min-height: 58px;
+  padding: 0.35rem;
+  cursor: pointer;
+}
+
+.calendar-day.selected {
+  background: #dce9ff;
+  border-color: var(--accent);
+}
+
+.calendar-day.muted {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.horario-input {
+  width: 5.6rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.busca-cadastro {
+  position: relative;
+}
+
+.busca-cadastro-lista {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #d5deec;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(30, 58, 95, 0.12);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.busca-cadastro-item,
+.busca-cadastro-vazio {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0.5rem 0.75rem;
+  color: inherit;
+}
+
+.busca-cadastro-item:hover,
+.busca-cadastro-item.is-active {
+  background: #dce9ff;
+}
+
+.busca-cadastro-vazio {
+  color: #6c757d;
+}
+
+.doc-preview {
+  white-space: pre-wrap;
+  background: #fff;
+  border: 1px solid #dbe3f0;
+  border-radius: 8px;
+  padding: 1rem;
+  font-family: "Times New Roman", Times, serif;
+}
+
+@media print {
+  nav, .no-print { display: none !important; }
+  body { background: #fff; }
+}

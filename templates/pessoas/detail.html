@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ pessoa.nome }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <h1 class="h3">{{ pessoa.nome }}</h1>
+  <a href="{% url 'pessoas:edit' pessoa.pk %}" class="btn btn-outline-primary">Editar</a>
+</div>
+<div class="stat-card col-lg-7">
+  <dl class="row mb-0">
+    <dt class="col-sm-4">CPF</dt><dd class="col-sm-8">{{ pessoa.cpf_formatado }}</dd>
+    <dt class="col-sm-4">Chave Pix</dt><dd class="col-sm-8">{{ pessoa.chave_pix }}</dd>
+    <dt class="col-sm-4">Ativo</dt><dd class="col-sm-8">{% if pessoa.ativo %}Sim{% else %}Não{% endif %}</dd>
+  </dl>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 2cm; }
+    body { font-family: "Times New Roman", Times, serif; font-size: 12pt; color: #111; }
+    header { border-bottom: 2px solid #1e3a5f; margin-bottom: 1.5rem; padding-bottom: .5rem; }
+    h1 { font-size: 16pt; margin: 0; color: #1e3a5f; }
+    .meta { font-size: 10pt; color: #444; margin-top: .25rem; }
+    .content { white-space: pre-wrap; line-height: 1.45; }
+    footer { margin-top: 2.5rem; }
+    .sign { margin-top: 3rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{ titulo }}</h1>
+    <div class="meta">
+      Documento {{ documento.numero_documento }} —
+      {{ documento.data_documento|date:"d/m/Y" }} —
+      Versão {{ documento.versao_atual }}
+    </div>
+  </header>
+  <div class="content">{{ conteudo }}</div>
+  <footer>
+    <div class="sign">
+      _________________________________<br>
+      Assinatura / responsável
+    </div>
+  </footer>
+</body>
+</html>

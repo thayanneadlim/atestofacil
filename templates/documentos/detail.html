@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ documento.numero_documento }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ documento.get_tipo_documento_display }}</h1>
+    <p class="text-muted mb-0">{{ documento.numero_documento }} — v{{ documento.versao_atual }} — {{ documento.data_documento|date:"d/m/Y" }}</p>
+  </div>
+  <div class="no-print">
+    <a href="{% url 'documentos:pdf' documento.pk %}" class="btn btn-primary">Baixar CI</a>
+    <a href="{% url 'servicos:excel' documento.servico_id %}" class="btn btn-success">Baixar previsão de pagamento</a>
+    <a href="{% url 'servicos:excel_rpa' documento.servico_id %}" class="btn btn-info text-white">Baixar RPA</a>
+    <a href="{% url 'servicos:atesto' documento.servico_id %}" class="btn btn-secondary">Baixar Atesto</a>
+    {% include "servicos/anexar_atesto.html" with servico=documento.servico tamanho="" %}
+    <a href="{% url 'documentos:print' documento.pk %}" class="btn btn-outline-primary" target="_blank">Imprimir</a>
+    <a href="{% url 'servicos:detail' documento.servico_id %}" class="btn btn-link">Ver serviço</a>
+  </div>
+</div>
+<div class="doc-preview mb-4">{{ documento.conteudo_renderizado }}</div>
+<h2 class="h5">Histórico de versões</h2>
+<table class="table bg-white">
+  <thead><tr><th>Versão</th><th>Data</th><th>Motivo</th><th></th></tr></thead>
+  <tbody>
+  {% for v in versoes %}
+    <tr>
+      <td>v{{ v.versao }}</td>
+      <td>{{ v.created_at|date:"d/m/Y H:i" }}</td>
+      <td>{{ v.motivo_alteracao }}</td>
+      <td><a href="{% url 'documentos:versao' documento.pk v.versao %}">Ver</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="text-muted">Sem versões.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Serviço {{ servico.numero_documento }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <div>
+    <h1 class="h3 mb-1">Serviço {{ servico.numero_documento }}</h1>
+    <p class="text-muted mb-0">RPA {{ servico.numero_rpa_documento }} — {{ servico.data_servico|date:"d/m/Y" }}</p>
+  </div>
+  <a href="{% url 'servicos:edit' servico.pk %}" class="btn btn-outline-primary">Editar</a>
+</div>
+<div class="stat-card mb-3">
+  <dl class="row mb-0">
+    <dt class="col-sm-3">CI e previsão</dt><dd class="col-sm-9">{{ servico.numero_documento }}</dd>
+    <dt class="col-sm-3">RPA</dt><dd class="col-sm-9">{{ servico.numero_rpa_documento }}</dd>
+    <dt class="col-sm-3">Pessoa</dt><dd class="col-sm-9">{{ servico.pessoa.nome }} ({{ servico.pessoa.cpf_formatado }})</dd>
+    <dt class="col-sm-3">Empresa</dt><dd class="col-sm-9">{{ servico.empresa.nome }}</dd>
+    <dt class="col-sm-3">Função</dt><dd class="col-sm-9">{{ servico.funcao }}</dd>
+    <dt class="col-sm-3">Assinatura</dt><dd class="col-sm-9">{{ servico.get_assinatura_display }}</dd>
+    <dt class="col-sm-3">Motivo</dt><dd class="col-sm-9">{{ servico.motivo_contratacao }}</dd>
+    <dt class="col-sm-3">Total horas</dt><dd class="col-sm-9">{{ servico.total_horas }}</dd>
+  </dl>
+</div>
+
+<h2 class="h5">Resumo do serviço</h2>
+<div class="stat-card mb-3">
+  <dl class="row mb-0">
+    <dt class="col-sm-3">Total de dias trabalhados</dt>
+    <dd class="col-sm-9"><strong>{{ resumo.total_dias }} dia{{ resumo.total_dias|pluralize }}</strong></dd>
+    <dt class="col-sm-3">Dias de 6 horas ou mais</dt>
+    <dd class="col-sm-9"><strong>{{ resumo.dias_6_a_8 }} dia{{ resumo.dias_6_a_8|pluralize }}</strong></dd>
+    <dt class="col-sm-3">Dias de 4 ou 5 horas</dt>
+    <dd class="col-sm-9"><strong>{{ resumo.dias_4 }} dia{{ resumo.dias_4|pluralize }}</strong></dd>
+    <dt class="col-sm-3">Dias até 22:00</dt>
+    <dd class="col-sm-9"><strong>{{ resumo.dias_ate_22 }} dia{{ resumo.dias_ate_22|pluralize }}</strong></dd>
+    <dt class="col-sm-3">Dias após 22:00</dt>
+    <dd class="col-sm-9"><strong>{{ resumo.dias_apos_22 }} dia{{ resumo.dias_apos_22|pluralize }}</strong></dd>
+    {% if resumo.dias_fora_faixa %}
+    <dt class="col-sm-3">Dias fora da faixa</dt>
+    <dd class="col-sm-9"><strong>{{ resumo.dias_fora_faixa }} dia{{ resumo.dias_fora_faixa|pluralize }}</strong> <span class="text-muted">(sem valor na tabela)</span></dd>
+    {% endif %}
+    <dt class="col-sm-3">Valor total</dt>
+    <dd class="col-sm-9"><strong>{{ resumo.valor_total_formatado }}</strong></dd>
+  </dl>
+</div>
+
+<h2 class="h5">Dias trabalhados</h2>
+<div class="table-responsive mb-4">
+  <table class="table bg-white">
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th class="text-end">Horas trabalhadas</th>
+        <th>Horário</th>
+        <th class="text-end">Valor do dia</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for item in resumo.itens %}
+      <tr>
+        <td>{{ item.data|date:"d/m/Y" }} — {{ item.data|date:"l" }}</td>
+        <td class="text-end">{{ item.horas_formatadas }}</td>
+        <td>{{ item.hora_inicio|time:"H:i" }} às {{ item.hora_fim|time:"H:i" }}</td>
+        <td class="text-end">{{ item.valor_formatado }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="text-muted">Nenhum dia informado.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="h5 mt-4">Documentos</h2>
+<div class="d-flex align-items-center gap-2 mb-3">
+  {% include "servicos/anexar_atesto.html" with servico=servico tamanho="btn-sm" %}
+</div>
+<div class="row g-3">
+{% for doc in servico.documentos.all %}
+  <div class="col-md-4">
+    <div class="stat-card h-100">
+      <h3 class="h6">{{ doc.get_tipo_documento_display }}</h3>
+      <p class="small text-muted">v{{ doc.versao_atual }} — {{ doc.numero_documento }}</p>
+      <a href="{% url 'documentos:detail' doc.pk %}" class="btn btn-sm btn-outline-secondary">Abrir</a>
+      <a href="{% url 'documentos:pdf' doc.pk %}" class="btn btn-sm btn-primary">Baixar CI</a>
+      <a href="{% url 'servicos:excel' servico.pk %}" class="btn btn-sm btn-success">Baixar previsão de pagamento</a>
+      <a href="{% url 'servicos:excel_rpa' servico.pk %}" class="btn btn-sm btn-info text-white">Baixar RPA</a>
+      <a href="{% url 'servicos:atesto' servico.pk %}" class="btn btn-sm btn-secondary">Baixar Atesto</a>
+      <a href="{% url 'documentos:print' doc.pk %}" class="btn btn-sm btn-outline-primary" target="_blank">Imprimir</a>
+    </div>
+  </div>
+{% empty %}
+  <div class="col-12"><p class="text-muted">Nenhum documento gerado.</p></div>
+{% endfor %}
+</div>
+{% endblock %}

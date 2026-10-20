@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Empresas{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <h1 class="h3">Empresas</h1>
+  <a href="{% url 'empresas:create' %}" class="btn btn-primary">Nova empresa</a>
+</div>
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-6"><input class="form-control" name="q" value="{{ q }}" placeholder="Buscar por nome ou CNPJ"></div>
+  <div class="col-auto"><button class="btn btn-outline-secondary">Buscar</button></div>
+</form>
+<table class="table table-hover bg-white">
+  <thead><tr><th>Nome</th><th>CNPJ</th><th>Ativo</th><th></th></tr></thead>
+  <tbody>
+  {% for e in empresas %}
+    <tr>
+      <td><a href="{% url 'empresas:detail' e.pk %}">{{ e.nome }}</a></td>
+      <td>{{ e.cnpj }}</td>
+      <td>{% if e.ativo %}Sim{% else %}Não{% endif %}</td>
+      <td class="text-end"><a href="{% url 'empresas:edit' e.pk %}" class="btn btn-sm btn-outline-primary">Editar</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="text-muted">Nenhuma empresa cadastrada.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Documentos{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Documentos</h1>
+<form method="get" class="stat-card mb-3">
+  <div class="row g-2">
+    <div class="col-md-4">{{ form.q }}</div>
+    <div class="col-md-3">{{ form.empresa }}</div>
+    <div class="col-md-2">{{ form.data_inicio }}</div>
+    <div class="col-md-2">{{ form.data_fim }}</div>
+    <div class="col-md-1"><button class="btn btn-outline-secondary w-100">Filtrar</button></div>
+  </div>
+</form>
+<table class="table table-hover bg-white">
+  <thead><tr><th>Número</th><th>Tipo</th><th>Pessoa</th><th>Empresa</th><th>Data</th><th>Versão</th></tr></thead>
+  <tbody>
+  {% for d in documentos %}
+    <tr>
+      <td><a href="{% url 'documentos:detail' d.pk %}">{{ d.numero_documento }}</a></td>
+      <td>{{ d.get_tipo_documento_display }}</td>
+      <td>{{ d.pessoa.nome }}</td>
+      <td>{{ d.servico.empresa.nome }}</td>
+      <td>{{ d.data_documento|date:"d/m/Y" }}</td>
+      <td>v{{ d.versao_atual }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="text-muted">Nenhum documento.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

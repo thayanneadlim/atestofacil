@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}{{ texto.nome }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <h1 class="h3">{{ texto.nome }}</h1>
+  <div>
+    <a href="{% url 'textos_padroes:edit' texto.pk %}" class="btn btn-outline-primary">Editar</a>
+    {% if not texto.em_uso %}<a href="{% url 'textos_padroes:delete' texto.pk %}" class="btn btn-outline-danger">Excluir</a>{% endif %}
+  </div>
+</div>
+<p class="text-muted">{{ texto.get_tipo_documento_display }} — {% if texto.ativo %}Ativo{% else %}Inativo{% endif %}</p>
+{% if texto.descricao %}<p>{{ texto.descricao }}</p>{% endif %}
+<h2 class="h5">Prévia</h2>
+<div class="doc-preview">{{ previa }}</div>
+{% endblock %}

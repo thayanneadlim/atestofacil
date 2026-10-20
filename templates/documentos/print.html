@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <title>Imprimir {{ documento.numero_documento }}</title>
+  <style>
+    body { margin: 0; background: #e9ecef; font-family: sans-serif; }
+    .barra {
+      position: sticky;
+      top: 0;
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background: #fff;
+      border-bottom: 1px solid #dee2e6;
+    }
+    .barra p { margin: 0; color: #495057; }
+    button {
+      padding: 0.4rem 0.9rem;
+      font: inherit;
+      cursor: pointer;
+    }
+    .erro { margin: 2rem; }
+    .pagina {
+      display: block;
+      width: min(100%, 900px);
+      height: auto;
+      margin: 1rem auto;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    }
+    @page { margin: 8mm; }
+    @media print {
+      body { background: #fff; }
+      .no-print { display: none !important; }
+      .pagina {
+        width: 100%;
+        max-height: 100vh;
+        object-fit: contain;
+        margin: 0 auto;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+      }
+      .pagina:last-child { page-break-after: auto; break-after: auto; }
+    }
+  </style>
+</head>
+<body{% if paginas %} onload="window.print()"{% endif %}>
+  <div class="barra no-print">
+    {% if erro %}
+      <p>{{ erro }}</p>
+    {% else %}
+      <button type="button" onclick="window.print()">Imprimir</button>
+      <p>Previsão de pagamento, CI e RPA{% if documento.servico.atesto_assinado %} e atesto assinado{% endif %} — {{ documento.numero_documento }}</p>
+    {% endif %}
+  </div>
+  {% if erro %}
+    <p class="erro">{{ erro }}</p>
+  {% else %}
+    {% for pagina in paginas %}
+      <img class="pagina" alt="Página {{ forloop.counter }}" src="data:image/png;base64,{{ pagina }}">
+    {% endfor %}
+  {% endif %}
+</body>
+</html>

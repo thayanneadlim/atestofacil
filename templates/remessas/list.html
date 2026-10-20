@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Remessas{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <h1 class="h3">Remessas</h1>
+  <a href="{% url 'remessas:create' %}" class="btn btn-primary">Nova previsão</a>
+</div>
+<form method="get" class="stat-card mb-3">
+  <div class="row g-2">
+    <div class="col-md-4">{{ form.q }}</div>
+    <div class="col-md-3">{{ form.empresa }}</div>
+    <div class="col-md-2">{{ form.data_inicio }}</div>
+    <div class="col-md-2">{{ form.data_fim }}</div>
+    <div class="col-md-1"><button class="btn btn-outline-secondary w-100">Filtrar</button></div>
+  </div>
+</form>
+<table class="table table-hover bg-white">
+  <thead><tr><th>Número</th><th>Pessoa</th><th>Empresa</th><th>Data</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for r in remessas %}
+    <tr>
+      <td><a href="{% url 'remessas:detail' r.pk %}">{{ r.numero_formatado }}</a></td>
+      <td>{{ r.pessoa.nome }}</td>
+      <td>{{ r.servico.empresa.nome }}</td>
+      <td>{{ r.data_criacao|date:"d/m/Y" }}</td>
+      <td>{{ r.get_status_display }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="text-muted">Nenhuma remessa encontrada.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

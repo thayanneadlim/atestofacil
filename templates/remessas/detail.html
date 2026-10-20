@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Remessa {{ remessa.numero_formatado }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <div>
+    <h1 class="h3 mb-1">Remessa {{ remessa.numero_formatado }}</h1>
+    <p class="text-muted mb-0">{{ remessa.get_status_display }} — {{ remessa.data_criacao|date:"d/m/Y" }}</p>
+  </div>
+  <div class="no-print">
+    {% if remessa.status != 'CANCELADA' %}
+      <a href="{% url 'remessas:edit' remessa.pk %}" class="btn btn-outline-primary">Editar</a>
+      <a href="{% url 'remessas:cancel' remessa.pk %}" class="btn btn-outline-danger">Cancelar</a>
+    {% endif %}
+  </div>
+</div>
+<div class="stat-card mb-3">
+  <dl class="row mb-0">
+    <dt class="col-sm-3">Pessoa</dt><dd class="col-sm-9">{{ remessa.pessoa.nome }} ({{ remessa.pessoa.cpf_formatado }})</dd>
+    <dt class="col-sm-3">Empresa</dt><dd class="col-sm-9">{{ remessa.servico.empresa.nome }}</dd>
+    <dt class="col-sm-3">Função</dt><dd class="col-sm-9">{{ remessa.servico.funcao }}</dd>
+    <dt class="col-sm-3">Motivo</dt><dd class="col-sm-9">{{ remessa.servico.motivo_contratacao }}</dd>
+    <dt class="col-sm-3">Total horas</dt><dd class="col-sm-9">{{ remessa.servico.total_horas }}</dd>
+  </dl>
+</div>
+<h2 class="h5">Dias trabalhados</h2>
+<ul>
+{% for d in remessa.servico.dias_trabalhados.all %}
+  <li>{{ d.data|date:"d/m/Y" }} — {{ d.data|date:"l" }} — {{ d.quantidade_horas }}h</li>
+{% endfor %}
+</ul>
+<h2 class="h5 mt-4">Documentos (3)</h2>
+<div class="row g-3">
+{% for doc in remessa.documentos.all %}
+  <div class="col-md-4">
+    <div class="stat-card h-100">
+      <h3 class="h6">{{ doc.get_tipo_documento_display }}</h3>
+      <p class="small text-muted">v{{ doc.versao_atual }} — {{ doc.numero_documento }}</p>
+      <a href="{% url 'documentos:detail' doc.pk %}" class="btn btn-sm btn-outline-secondary">Abrir</a>
+      <a href="{% url 'documentos:pdf' doc.pk %}" class="btn btn-sm btn-primary" target="_blank">PDF</a>
+      <a href="{% url 'documentos:print' doc.pk %}" class="btn btn-sm btn-outline-primary" target="_blank">Imprimir</a>
+    </div>
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Versão {{ versao.versao }}{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Versão {{ versao.versao }} — {{ versao.documento.numero_documento }}</h1>
+<p class="text-muted">{{ versao.created_at|date:"d/m/Y H:i" }} — {{ versao.motivo_alteracao }}</p>
+<div class="doc-preview">{{ versao.conteudo_renderizado }}</div>
+<a href="{% url 'documentos:detail' versao.documento_id %}" class="btn btn-link mt-3">Voltar</a>
+{% endblock %}

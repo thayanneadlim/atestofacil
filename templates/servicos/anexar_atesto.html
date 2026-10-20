@@ -1,0 +1,11 @@
+<form method="post" action="{% url 'servicos:anexar_atesto' servico.pk %}" enctype="multipart/form-data" class="d-inline">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.path }}">
+  <label class="btn {{ tamanho }} btn-outline-dark mb-0">
+    Anexar atesto assinado
+    <input type="file" name="atesto_assinado" class="visually-hidden" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" required onchange="this.form.requestSubmit()">
+  </label>
+</form>
+{% if servico.atesto_assinado %}
+  <span class="small text-success">Atesto assinado anexado</span>
+{% endif %}

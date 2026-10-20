@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Serviços{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <h1 class="h3">Serviços</h1>
+  <a href="{% url 'servicos:create' %}" class="btn btn-primary">Novo serviço</a>
+</div>
+<table class="table table-hover bg-white">
+  <thead><tr><th>Número</th><th>Pessoa</th><th>Empresa</th><th>Data</th><th></th></tr></thead>
+  <tbody>
+  {% for s in servicos %}
+    <tr>
+      <td>
+        <a href="{% url 'servicos:detail' s.pk %}">{{ s.numero_documento }}</a>
+        <div class="small text-muted">RPA {{ s.numero_rpa_documento }}</div>
+      </td>
+      <td>{{ s.pessoa.nome }}</td>
+      <td>{{ s.empresa.nome }}</td>
+      <td>{{ s.data_servico|date:"d/m/Y" }}</td>
+      <td class="text-end"><a href="{% url 'servicos:edit' s.pk %}" class="btn btn-sm btn-outline-primary">Editar</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="text-muted">Nenhum serviço.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

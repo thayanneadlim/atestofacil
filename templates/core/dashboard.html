@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — AtestoFacil{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-1">Dashboard</h1>
+    <p class="text-muted mb-0">Visão geral das previsões de pagamento.</p>
+  </div>
+  <a href="{% url 'servicos:create' %}" class="btn btn-primary">Novo serviço</a>
+</div>
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="stat-card"><div class="text-muted">Pessoas</div><div class="fs-3 fw-semibold">{{ total_pessoas }}</div></div></div>
+  <div class="col-md-3"><div class="stat-card"><div class="text-muted">Empresas</div><div class="fs-3 fw-semibold">{{ total_empresas }}</div></div></div>
+  <div class="col-md-3"><div class="stat-card"><div class="text-muted">Serviços</div><div class="fs-3 fw-semibold">{{ total_servicos }}</div></div></div>
+  <div class="col-md-3"><div class="stat-card"><div class="text-muted">Documentos</div><div class="fs-3 fw-semibold">{{ total_documentos }}</div></div></div>
+</div>
+<div class="stat-card">
+  <h2 class="h5 mb-3">Últimos serviços</h2>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>Número</th><th>Pessoa</th><th>Empresa</th><th>Data</th></tr></thead>
+      <tbody>
+      {% for servico in ultimos_servicos %}
+        <tr>
+          <td>
+            <a href="{% url 'servicos:detail' servico.pk %}">{{ servico.numero_documento }}</a>
+            <div class="small text-muted">RPA {{ servico.numero_rpa_documento }}</div>
+          </td>
+          <td>{{ servico.pessoa.nome }}</td>
+          <td>{{ servico.empresa.nome }}</td>
+          <td>{{ servico.data_servico|date:"d/m/Y" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="text-muted">Nenhum serviço criado ainda.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

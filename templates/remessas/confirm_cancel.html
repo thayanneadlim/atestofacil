@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Cancelar remessa{% endblock %}
+{% block content %}
+<div class="stat-card col-lg-6">
+  <h1 class="h4">Cancelar remessa {{ remessa.numero_formatado }}?</h1>
+  <p>O número será preservado no histórico e não poderá ser reutilizado.</p>
+  <form method="post">{% csrf_token %}
+    <button class="btn btn-danger" type="submit">Confirmar cancelamento</button>
+    <a href="{% url 'remessas:detail' remessa.pk %}" class="btn btn-link">Voltar</a>
+  </form>
+</div>
+{% endblock %}
