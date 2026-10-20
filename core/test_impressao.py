@@ -53,9 +53,24 @@ class ConversaoSemLibreOfficeTests(TestCase):
             previsao = _texto_pdf(base / "previsao.pdf")
             ci = _texto_pdf(base / "ci.pdf")
             rpa = _texto_pdf(base / "rpa.pdf")
+            ci_pdf = pymupdf.open(base / "ci.pdf")
+            try:
+                self.assertEqual(ci_pdf.page_count, 1)
+                self.assertTrue(ci_pdf[0].get_images())
+                verdes = [
+                    item
+                    for item in ci_pdf[0].get_drawings()
+                    if item.get("color")
+                    and item["color"][1] > 0.35
+                    and item["color"][0] < 0.2
+                ]
+                self.assertTrue(verdes)
+            finally:
+                ci_pdf.close()
         self.assertIn("Previsão de Pagamento", previsao)
         self.assertIn("Comunicação Interna", ci)
         self.assertIn("Atenciosamente", ci)
+        self.assertIn("NOSSO CRESCIMENTO", ci)
         self.assertIn("RECIBO DE PAGAMENTO", rpa)
         self.assertIn("1,33", rpa)
         self.assertNotIn("TRANSPORTAR RPA", rpa)
@@ -116,6 +131,29 @@ class ImpressaoViewTests(TestCase):
         depois = paginas_png_documentos(self.documento)
         self.assertGreater(len(depois), antes)
         self.assertTrue(depois[-1].startswith(b"\x89PNG"))
+
+    def test_impressao_reaproveita_ci_armazenada(self):
+        from tempfile import TemporaryDirectory
+
+        from core.services.conversao_pdf import _pdf_python
+
+        with self.documento.arquivo_pdf.open("rb") as arquivo:
+            dados = arquivo.read()
+        with TemporaryDirectory() as pasta:
+            origem = Path(pasta) / "ci.docx"
+            origem.write_bytes(dados)
+            pdf = Path(pasta) / "ci.pdf"
+            pdf.write_bytes(_pdf_python(origem))
+            texto = _texto_pdf(pdf)
+            documento = pymupdf.open(pdf)
+            try:
+                self.assertEqual(documento.page_count, 1)
+                self.assertTrue(documento[0].get_images())
+            finally:
+                documento.close()
+        self.assertIn("Maria", texto)
+        self.assertIn("NOSSO CRESCIMENTO", texto)
+        self.assertNotIn("{{", texto)
 
     def test_sem_arquivo_levanta_erro(self):
         self.documento.arquivo_pdf = None

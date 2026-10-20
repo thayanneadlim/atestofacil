@@ -72,6 +72,7 @@ def paginas_png_documentos(documento) -> list[bytes]:
     """
     Gera as páginas da previsão de pagamento, da CI, do RPA e, se houver, do atesto.
 
+    A CI é o arquivo já armazenado no serviço, convertido sem gerar outro modelo.
     Cada item é o PNG de uma página, pronto para a tela de impressão.
     O atesto assinado só entra quando estiver anexado ao serviço.
     """

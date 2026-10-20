@@ -14,7 +14,6 @@ A união dos PDFs fica no ``pypdf``. A rasterização não usa ``pdftoppm``.
 from __future__ import annotations
 
 import contextlib
-import math
 import os
 import re
 import shutil
@@ -33,8 +32,6 @@ from openpyxl.utils import coordinate_to_tuple, get_column_letter, range_boundar
 from pypdf import PdfReader, PdfWriter
 
 from docx import Document
-from docx.table import Table
-from docx.text.paragraph import Paragraph
 
 
 class ConversaoPdfError(Exception):
@@ -50,6 +47,8 @@ _PAPEL = {
 }
 _NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 _NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+_WML = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 _REF = re.compile(r"\$?([A-Z]{1,3})\$?(\d+)")
 _WEASY = {"html": None, "falhou": False}
 
@@ -139,16 +138,21 @@ def _pdf_python(origem: Path) -> bytes:
         return dados
     if tipo in {"png", "jpeg"}:
         return imagem_para_pdf(dados)
-    if tipo in {"xlsx", "docx"}:
+    if tipo == "docx":
+        try:
+            return _pdf_word(origem)
+        except ConversaoPdfError:
+            raise
+        except Exception:
+            return _pdf_texto(_linhas_office(origem, tipo))
+    if tipo == "xlsx":
         if _weasy_disponivel():
             try:
-                return _pdf_weasy(_html_office(origem, tipo))
+                return _pdf_weasy(_html_planilha(origem))
             except Exception:
                 pass
         try:
-            if tipo == "xlsx":
-                return _pdf_planilha(origem)
-            return _pdf_word(origem)
+            return _pdf_planilha(origem)
         except ConversaoPdfError:
             raise
         except Exception:
@@ -1008,41 +1012,65 @@ def _cor_fonte(celula):
     return (0, 0, 0)
 
 
-def _registrar_fonte(pagina, fontes: dict, nome: str, negrito: bool) -> str:
-    chave = ((nome or "Arial").lower(), bool(negrito))
+def _registrar_fonte(pagina, fontes: dict, nome: str, negrito: bool, italico: bool = False) -> str:
+    chave = ((nome or "Arial").lower(), bool(negrito), bool(italico))
     if chave in fontes:
         return fontes[chave]
-    caminho = _caminho_fonte(*chave)
+    caminho = _caminho_fonte(chave[0], negrito, italico)
     interno = f"F{len(fontes)}"
     if caminho is not None:
-        pagina.insert_font(fontname=interno, fontfile=str(caminho))
-        fontes[chave] = interno
-        return interno
+        try:
+            pagina.insert_font(fontname=interno, fontfile=str(caminho))
+        except Exception:
+            caminho = None
+        else:
+            fontes[chave] = interno
+            return interno
     interno = "hebo" if negrito else "helv"
     fontes[chave] = interno
     return interno
 
 
-def _caminho_fonte(nome: str, negrito: bool) -> Path | None:
-    arquivos = {
-        ("arial", False): "arial.ttf",
-        ("arial", True): "arialbd.ttf",
-        ("calibri", False): "calibri.ttf",
-        ("calibri", True): "calibrib.ttf",
-        ("times new roman", False): "times.ttf",
-        ("times new roman", True): "timesbd.ttf",
-        ("cambria", False): "times.ttf",
-        ("cambria", True): "timesbd.ttf",
-        ("liberation sans", False): "LiberationSans-Regular.ttf",
-        ("liberation sans", True): "LiberationSans-Bold.ttf",
-        ("ubuntu", False): "arial.ttf",
-        ("ubuntu", True): "arialbd.ttf",
+def _caminho_fonte(nome: str, negrito: bool, italico: bool = False) -> Path | None:
+    apelidos = {
+        "times": "times new roman",
+        "liberation serif": "times new roman",
+        "liberation sans": "arial",
+        "noto serif cjk sc": "times new roman",
+        "noto sans devanagari": "arial",
     }
-    arquivo = arquivos.get((nome, negrito)) or arquivos.get((nome, False))
-    if negrito and arquivo is None:
-        arquivo = "arialbd.ttf"
+    nome = apelidos.get((nome or "").lower(), (nome or "").lower())
+    arquivos = {
+        ("arial", False, False): "arial.ttf",
+        ("arial", True, False): "arialbd.ttf",
+        ("arial", False, True): "ariali.ttf",
+        ("arial", True, True): "arialbi.ttf",
+        ("arial narrow", False, False): "arialn.ttf",
+        ("arial narrow", True, False): "arialnb.ttf",
+        ("arial narrow", False, True): "arialni.ttf",
+        ("arial narrow", True, True): "arialnbi.ttf",
+        ("calibri", False, False): "calibri.ttf",
+        ("calibri", True, False): "calibrib.ttf",
+        ("calibri", False, True): "calibrii.ttf",
+        ("calibri", True, True): "calibriz.ttf",
+        ("times new roman", False, False): "times.ttf",
+        ("times new roman", True, False): "timesbd.ttf",
+        ("times new roman", False, True): "timesi.ttf",
+        ("times new roman", True, True): "timesbi.ttf",
+        ("cambria", False, False): "cambria.ttc",
+        ("cambria", True, False): "cambriab.ttf",
+        ("cambria", False, True): "cambriai.ttf",
+        ("cambria", True, True): "cambriaz.ttf",
+        ("ubuntu", False, False): "arial.ttf",
+        ("ubuntu", True, False): "arialbd.ttf",
+    }
+    arquivo = (
+        arquivos.get((nome, negrito, italico))
+        or arquivos.get((nome, negrito, False))
+        or arquivos.get((nome, False, False))
+    )
     if arquivo is None:
-        arquivo = "arial.ttf"
+        arquivo = "arialbd.ttf" if negrito else "arial.ttf"
     pastas = [
         Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts",
         Path("/usr/share/fonts/truetype/dejavu"),
@@ -1053,6 +1081,10 @@ def _caminho_fonte(nome: str, negrito: bool) -> Path | None:
         alternativas = [arquivo, "DejaVuSans.ttf", "LiberationSans-Regular.ttf"]
     elif arquivo == "arialbd.ttf":
         alternativas = [arquivo, "DejaVuSans-Bold.ttf", "LiberationSans-Bold.ttf"]
+    elif arquivo == "times.ttf":
+        alternativas = [arquivo, "LiberationSerif-Regular.ttf", "DejaVuSerif.ttf"]
+    elif arquivo == "timesbd.ttf":
+        alternativas = [arquivo, "LiberationSerif-Bold.ttf", "DejaVuSerif-Bold.ttf"]
     else:
         alternativas = [arquivo]
     for pasta in pastas:
@@ -1124,196 +1156,182 @@ def _desenhar_imagem_planilha(
 
 
 def _pdf_word(origem: Path) -> bytes:
-    documento = Document(str(origem))
-    secao = documento.sections[0]
-    largura = float(secao.page_width.pt)
-    altura = float(secao.page_height.pt)
-    esquerda = float(secao.left_margin.pt)
-    direita = float(secao.right_margin.pt)
-    topo = float(secao.top_margin.pt)
-    baixo = float(secao.bottom_margin.pt)
-    imagens = _imagens_docx(origem)
+    """Desenha o DOCX armazenado, sem reconstruí-lo a partir de outro modelo."""
+    with zipfile.ZipFile(origem) as pacote:
+        if "word/document.xml" not in pacote.namelist():
+            raise ConversaoPdfError(_MENSAGEM)
+        documento = etree.fromstring(pacote.read("word/document.xml"))
+        base, estilos = _estilos_docx(pacote)
+        imagens = _imagens_docx(origem)
+        rodape = _paragrafos_rodape(pacote)
+    corpo = documento.find(_w("body"))
+    if corpo is None:
+        raise ConversaoPdfError(_MENSAGEM)
     pdf = pymupdf.open()
     try:
-        pagina = pdf.new_page(width=largura, height=altura)
-        fontes: dict[tuple[str, bool], str] = {}
-        y = topo
-        limite = altura - baixo
-        for bloco in documento.element.body:
-            nome = etree.QName(bloco).localname
-            if nome == "p":
-                y = _paragrafo_word(
-                    pagina,
-                    Paragraph(bloco, documento),
-                    fontes,
-                    esquerda,
-                    y,
-                    largura - direita,
-                    limite,
-                )
-            elif nome == "tbl":
-                y = _tabela_word(
-                    pagina,
-                    Table(bloco, documento),
-                    fontes,
-                    imagens,
-                    esquerda,
-                    y,
-                    largura - direita,
-                )
-            if y > limite:
-                _rodape_word(pagina, secao, fontes)
-                pagina = pdf.new_page(width=largura, height=altura)
-                fontes = {}
-                y = topo
-        _rodape_word(pagina, secao, fontes)
+        desenho = _DocxFiel(pdf, _geometria_docx(corpo), base, estilos, imagens)
+        desenho.renderizar(corpo, rodape)
         return pdf.tobytes(deflate=True, garbage=3)
     finally:
         pdf.close()
 
 
-def _paragrafo_word(pagina, paragrafo: Paragraph, fontes, x0, y, x1, limite) -> float:
-    texto = paragrafo.text.strip()
-    tamanho = _tamanho_fonte(paragrafo)
-    antes = _espaco(paragrafo.paragraph_format.space_before)
-    depois = _espaco(paragrafo.paragraph_format.space_after)
-    y += antes
-    if not texto:
-        return y + max(tamanho, 12) * 0.85 + depois
-    negrito = any(run.bold for run in paragrafo.runs)
-    nome = next((run.font.name for run in paragrafo.runs if run.font.name), "Arial")
-    fontname = _registrar_fonte(pagina, fontes, nome, bool(negrito))
-    alinhamento = {
-        1: pymupdf.TEXT_ALIGN_CENTER,
-        2: pymupdf.TEXT_ALIGN_RIGHT,
-        3: pymupdf.TEXT_ALIGN_JUSTIFY,
-    }.get(int(paragrafo.alignment or 0), pymupdf.TEXT_ALIGN_LEFT)
-    linhas = max(1, math.ceil((len(texto) * tamanho * 0.5) / max(x1 - x0, 20)))
-    altura = linhas * tamanho * 1.45 + 2
-    if y + altura > limite:
-        return limite + 1
-    caixa = pymupdf.Rect(x0, y, x1, y + altura)
-    pagina.insert_textbox(
-        caixa,
-        texto,
-        fontsize=tamanho,
-        fontname=fontname,
-        align=alinhamento,
-        color=(0, 0, 0),
-    )
-    return y + altura + depois
+def _w(tag: str) -> str:
+    return f"{{{_WML}}}{tag}"
 
 
-def _tamanho_fonte(paragrafo: Paragraph) -> float:
-    for run in paragrafo.runs:
-        if run.font.size:
-            return float(run.font.size.pt)
-    return 12.0
+def _attr(elemento, nome: str):
+    if elemento is None:
+        return None
+    return elemento.get(_w(nome))
 
 
-def _espaco(valor) -> float:
+def _twips(valor) -> float:
+    return int(valor) / 20
+
+
+def _ligado(elemento, tag: str):
+    nodo = elemento.find(_w(tag)) if elemento is not None else None
+    if nodo is None:
+        return None
+    valor = _attr(nodo, "val")
     if valor is None:
-        return 0.0
+        return True
+    return str(valor).lower() not in {"0", "false", "off", "none"}
+
+
+def _cor_hex(valor: str | None):
+    if not valor or valor == "auto":
+        return None
+    texto = valor[-6:]
     try:
-        return float(valor.pt)
-    except AttributeError:
-        return 0.0
+        return tuple(int(texto[indice : indice + 2], 16) / 255 for indice in (0, 2, 4))
+    except ValueError:
+        return None
 
 
-def _tabela_word(pagina, tabela: Table, fontes, imagens, x0, y, x1) -> float:
-    larguras = _larguras_tabela(tabela)
-    disponivel = max(x1 - x0, 20)
-    total = sum(larguras) or disponivel
-    fator = min(1.0, disponivel / total)
-    larguras = [item * fator for item in larguras]
-    linhas = [_celulas_da_linha(linha) for linha in tabela.rows]
-    alturas = [max(_altura_linha_word(linha), 12) for linha in tabela.rows]
-    for indice, celulas in enumerate(linhas):
-        coluna = 0
-        x = x0
-        for celula, alcance, vmerge in celulas:
-            largura = sum(larguras[coluna : coluna + alcance]) if larguras else disponivel
-            if vmerge == "continue":
-                x += largura
-                coluna += alcance
-                continue
-            repeticoes = _linhas_mescladas(linhas, indice, coluna) if vmerge == "restart" else 1
-            altura = sum(alturas[indice : indice + repeticoes])
-            retangulo = pymupdf.Rect(x, y, x + largura, y + altura)
-            pagina.draw_rect(retangulo, color=(0, 0, 0), width=0.6)
-            _imagem_na_celula(pagina, celula, imagens, retangulo)
-            texto = celula.text.strip()
-            if texto:
-                fontname = _registrar_fonte(pagina, fontes, "Arial", False)
-                tamanho = min(9.0, max(6.0, (altura - 3) / 1.25))
-                pagina.insert_textbox(
-                    pymupdf.Rect(retangulo.x0 + 2, retangulo.y0 + 1, retangulo.x1 - 2, retangulo.y1 - 1),
-                    texto,
-                    fontsize=tamanho,
-                    fontname=fontname,
-                    align=pymupdf.TEXT_ALIGN_LEFT,
-                    color=(0, 0, 0),
-                    lineheight=1.05,
-                )
-            x += largura
-            coluna += alcance
-        y += alturas[indice]
-    return y + 8
+def _ler_rpr(elemento) -> dict:
+    if elemento is None:
+        return {}
+    dados = {}
+    fontes = elemento.find(_w("rFonts"))
+    if fontes is not None:
+        nome = _attr(fontes, "ascii") or _attr(fontes, "hAnsi") or _attr(fontes, "cs")
+        if nome:
+            dados["fonte"] = nome
+    for tag, chave in (("b", "negrito"), ("i", "italico"), ("smallCaps", "maiusculas")):
+        flag = _ligado(elemento, tag)
+        if flag is not None:
+            dados[chave] = flag
+    tamanho = elemento.find(_w("sz"))
+    if tamanho is not None and _attr(tamanho, "val"):
+        dados["tamanho"] = int(_attr(tamanho, "val")) / 2
+    cor = _cor_hex(_attr(elemento.find(_w("color")), "val"))
+    if cor is not None:
+        dados["cor"] = cor
+    return dados
 
 
-def _linhas_mescladas(linhas, indice: int, coluna: int) -> int:
-    total = 1
-    for seguinte in linhas[indice + 1 :]:
-        cursor = 0
-        continua = False
-        for _celula, alcance, vmerge in seguinte:
-            if cursor == coluna:
-                continua = vmerge == "continue"
-                break
-            cursor += alcance
-        if not continua:
-            break
-        total += 1
-    return total
+def _ler_ppr(elemento) -> dict:
+    if elemento is None:
+        return {}
+    dados = {}
+    alinhamento = elemento.find(_w("jc"))
+    if alinhamento is not None and _attr(alinhamento, "val"):
+        dados["alinhamento"] = _attr(alinhamento, "val")
+    espaco = elemento.find(_w("spacing"))
+    if espaco is not None:
+        for origem, destino in (("before", "antes"), ("after", "depois"), ("line", "linha")):
+            if _attr(espaco, origem):
+                dados[destino] = int(_attr(espaco, origem))
+        if _attr(espaco, "lineRule"):
+            dados["regra"] = _attr(espaco, "lineRule")
+    recuo = elemento.find(_w("ind"))
+    if recuo is not None:
+        inicio = _attr(recuo, "start") or _attr(recuo, "left") or "0"
+        pendente = _attr(recuo, "hanging")
+        if pendente:
+            dados["recuo"] = (int(inicio) - int(pendente)) / 20
+        elif _attr(recuo, "start") or _attr(recuo, "left"):
+            dados["recuo"] = int(inicio) / 20
+    estilo = elemento.find(_w("pStyle"))
+    if estilo is not None and _attr(estilo, "val"):
+        dados["estilo"] = _attr(estilo, "val")
+    return dados
 
 
-def _celulas_da_linha(linha):
-    vistos = []
-    saida = []
-    for celula in linha.cells:
-        if celula._tc in vistos:
+def _estilos_docx(pacote) -> tuple[dict, dict]:
+    if "word/styles.xml" not in pacote.namelist():
+        return {}, {}
+    raiz = etree.fromstring(pacote.read("word/styles.xml"))
+    padrao = raiz.find(f"{_w('docDefaults')}/{_w('rPrDefault')}/{_w('rPr')}")
+    base = _ler_rpr(padrao)
+    estilos = {}
+    for estilo in raiz.findall(_w("style")):
+        identificador = _attr(estilo, "styleId")
+        if not identificador:
             continue
-        vistos.append(celula._tc)
-        alcance = 1
-        propriedades = celula._tc.tcPr
-        vmerge = None
-        if propriedades is not None:
-            if propriedades.gridSpan is not None:
-                alcance = int(propriedades.gridSpan.val)
-            if propriedades.vMerge is not None:
-                valor = propriedades.vMerge.val
-                vmerge = "continue" if not valor or valor == "continue" else "restart"
-        saida.append((celula, alcance, vmerge))
-    return saida
+        base_em = estilo.find(_w("basedOn"))
+        estilos[identificador] = {
+            "based": _attr(base_em, "val"),
+            "r": _ler_rpr(estilo.find(_w("rPr"))),
+            "p": _ler_ppr(estilo.find(_w("pPr"))),
+        }
+    return base, estilos
 
 
-def _larguras_tabela(tabela: Table) -> list[float]:
-    grade = tabela._tbl.tblGrid
-    if grade is None:
+def _cadeia(estilos: dict, identificador: str | None, campo: str) -> dict:
+    vistos = set()
+    ordem = []
+    while identificador and identificador not in vistos and identificador in estilos:
+        vistos.add(identificador)
+        ordem.append(identificador)
+        identificador = estilos[identificador]["based"]
+    resultado = {}
+    for item in reversed(ordem):
+        resultado.update(estilos[item][campo])
+    return resultado
+
+
+def _geometria_docx(corpo) -> dict:
+    secao = corpo.find(_w("sectPr"))
+    caixa = {"largura": 612.0, "altura": 792.0, "esquerda": 72.0, "topo": 72.0, "direita": 72.0, "baixo": 72.0, "rodape": 36.0}
+    if secao is None:
+        return caixa
+    tamanho = secao.find(_w("pgSz"))
+    if tamanho is not None and _attr(tamanho, "w") and _attr(tamanho, "h"):
+        caixa["largura"] = _twips(_attr(tamanho, "w"))
+        caixa["altura"] = _twips(_attr(tamanho, "h"))
+        if _attr(tamanho, "orient") == "landscape" and caixa["largura"] < caixa["altura"]:
+            caixa["largura"], caixa["altura"] = caixa["altura"], caixa["largura"]
+    margens = secao.find(_w("pgMar"))
+    if margens is not None:
+        for chave, campo in (
+            ("left", "esquerda"),
+            ("right", "direita"),
+            ("top", "topo"),
+            ("bottom", "baixo"),
+            ("footer", "rodape"),
+        ):
+            if _attr(margens, chave):
+                caixa[campo] = _twips(_attr(margens, chave))
+    return caixa
+
+
+def _paragrafos_rodape(pacote) -> list:
+    relacoes = "word/_rels/document.xml.rels"
+    if relacoes not in pacote.namelist():
         return []
-    larguras = []
-    for coluna in grade.gridCol_lst:
-        valor = float(coluna.w or 0)
-        larguras.append(valor / 12700 if valor > 5000 else valor / 20)
-    return larguras
-
-
-def _altura_linha_word(linha) -> float:
-    propriedades = linha._tr.trPr
-    if propriedades is None or propriedades.trHeight is None:
-        return 18.0
-    valor = float(propriedades.trHeight.val)
-    return valor / 12700 if valor > 5000 else valor / 20
+    raiz = etree.fromstring(pacote.read(relacoes))
+    for relacao in raiz:
+        if not (relacao.get("Type") or "").endswith("/footer"):
+            continue
+        alvo = relacao.get("Target") or ""
+        nome = alvo if alvo.startswith("word/") else "word/" + alvo.lstrip("/")
+        if nome not in pacote.namelist():
+            continue
+        return etree.fromstring(pacote.read(nome)).findall(_w("p"))
+    return []
 
 
 def _imagens_docx(origem: Path) -> dict[str, bytes]:
@@ -1338,41 +1356,469 @@ def _imagens_docx(origem: Path) -> dict[str, bytes]:
     return imagens
 
 
-def _imagem_na_celula(pagina, celula, imagens: dict[str, bytes], retangulo) -> None:
-    for blip in celula._tc.findall(f".//{{{_NS_A}}}blip"):
-        identificador = blip.get(f"{{{_NS_REL}}}embed")
-        dados = imagens.get(identificador or "")
-        if not dados:
+def _formato_base() -> dict:
+    return {
+        "fonte": "Times New Roman",
+        "tamanho": 12.0,
+        "negrito": False,
+        "italico": False,
+        "cor": (0, 0, 0),
+        "maiusculas": False,
+    }
+
+
+def _ancoras(paragrafo) -> list[dict]:
+    imagens = []
+    for ancora in paragrafo.findall(f".//{{{_WP}}}anchor"):
+        extensao = ancora.find(f"{{{_WP}}}extent")
+        blip = ancora.find(f".//{{{_NS_A}}}blip")
+        if extensao is None or blip is None:
             continue
-        area = pymupdf.Rect(
-            retangulo.x0 + 4,
-            retangulo.y0 + 3,
-            retangulo.x1 - 4,
-            retangulo.y1 - 3,
+        horizontal = ancora.find(f"{{{_WP}}}positionH/{{{_WP}}}posOffset")
+        vertical = ancora.find(f"{{{_WP}}}positionV/{{{_WP}}}posOffset")
+        imagens.append(
+            {
+                "id": blip.get(f"{{{_NS_REL}}}embed"),
+                "x": int(horizontal.text or 0) / 12700 if horizontal is not None else 0,
+                "y": int(vertical.text or 0) / 12700 if vertical is not None else 0,
+                "largura": int(extensao.get("cx") or 0) / 12700,
+                "altura": int(extensao.get("cy") or 0) / 12700,
+            }
         )
-        pagina.insert_image(area, stream=dados, keep_proportion=True)
+    return imagens
 
 
-def _rodape_word(pagina, secao, fontes) -> None:
-    textos = [paragrafo.text.strip() for paragrafo in secao.footer.paragraphs if paragrafo.text.strip()]
-    if not textos:
+def _bordas_celula(propriedades) -> dict:
+    elemento = propriedades.find(_w("tcBorders")) if propriedades is not None else None
+    if elemento is None:
+        return {}
+    nomes = {"top": "top", "bottom": "bottom", "start": "left", "left": "left", "end": "right", "right": "right"}
+    bordas = {}
+    for tag, lado in nomes.items():
+        borda = elemento.find(_w(tag))
+        if borda is None:
+            continue
+        estilo = _attr(borda, "val") or "single"
+        if estilo in {"nil", "none"}:
+            continue
+        cor = _cor_hex(_attr(borda, "color")) or (0, 0, 0)
+        bordas[lado] = {"estilo": estilo, "sz": int(_attr(borda, "sz") or 4), "cor": cor}
+    return bordas
+
+
+class _DocxFiel:
+    """Reproduz o DOCX guardado: tabelas, bordas, fontes e imagens do próprio arquivo."""
+
+    def __init__(self, pdf, caixa: dict, base: dict, estilos: dict, imagens: dict[str, bytes]):
+        self.pdf = pdf
+        self.caixa = caixa
+        self.base = base
+        self.estilos = estilos
+        self.imagens = imagens
+        self.medidores: dict = {}
+        self.pagina = None
+        self.fontes: dict = {}
+        self.paginas = []
+        self.y = 0.0
+
+    def renderizar(self, corpo, rodape) -> None:
+        self._nova_pagina()
+        for bloco in corpo:
+            nome = etree.QName(bloco).localname
+            if nome == "p":
+                self._fluir_paragrafo(bloco, self._largura_util())
+            elif nome == "tbl":
+                self._fluir_tabela(bloco)
+        for pagina in self.paginas:
+            self._desenhar_rodape(pagina, rodape)
+
+    def _nova_pagina(self) -> None:
+        self.pagina = self.pdf.new_page(width=self.caixa["largura"], height=self.caixa["altura"])
+        self.fontes = {}
+        self.paginas.append(self.pagina)
+        self.y = self.caixa["topo"]
+
+    def _limite(self) -> float:
+        return self.caixa["altura"] - self.caixa["baixo"]
+
+    def _largura_util(self) -> float:
+        return max(self.caixa["largura"] - self.caixa["esquerda"] - self.caixa["direita"], 40)
+
+    def _fluir_paragrafo(self, elemento, largura: float) -> None:
+        bloco = self._preparar_paragrafo(elemento, largura)
+        if self.y + bloco["altura"] > self._limite() and self.y > self.caixa["topo"] + 8:
+            self._nova_pagina()
+        self._desenhar_paragrafo(self.pagina, bloco, self.caixa["esquerda"], self.y)
+        self.y += bloco["altura"]
+
+    def _fluir_tabela(self, tabela) -> None:
+        preparada = self._preparar_tabela(tabela)
+        if self.y + preparada["altura"] > self._limite() and self.y > self.caixa["topo"] + 8:
+            self._nova_pagina()
+        self.y = self._desenhar_tabela(self.pagina, preparada, self.caixa["esquerda"], self.y)
+
+    def _preparar_paragrafo(self, elemento, largura: float) -> dict:
+        propriedades = elemento.find(_w("pPr"))
+        direto = _ler_ppr(propriedades)
+        paragrafo = _cadeia(self.estilos, direto.get("estilo"), "p")
+        paragrafo.update({chave: valor for chave, valor in direto.items() if chave != "estilo"})
+        paragrafo.setdefault("alinhamento", "left")
+        paragrafo.setdefault("antes", 0)
+        paragrafo.setdefault("depois", 0)
+        paragrafo.setdefault("recuo", 0)
+        rpr = dict(self.base)
+        rpr.update(_cadeia(self.estilos, direto.get("estilo"), "r"))
+        if propriedades is not None:
+            rpr.update(_ler_rpr(propriedades.find(_w("rPr"))))
+        trechos = []
+        for run in self._runs(elemento):
+            fmt = _formato_base()
+            fmt.update(rpr)
+            fmt.update(_ler_rpr(run.find(_w("rPr"))))
+            for neto in run:
+                tag = etree.QName(neto).localname
+                if tag == "br":
+                    trechos.append(("\n", fmt))
+                elif tag == "tab":
+                    trechos.append(("    ", fmt))
+                elif tag == "t" and neto.text:
+                    texto = neto.text.upper() if fmt["maiusculas"] else neto.text
+                    trechos.append((texto, fmt))
+        tamanho = max((fmt["tamanho"] for _, fmt in trechos), default=fmt_padrao(rpr))
+        if not any(texto.strip() for texto, _ in trechos):
+            linhas = [[]]
+        else:
+            linhas = self._quebrar(trechos, max(largura - paragrafo["recuo"], 12))
+        altura_linha = _altura_da_linha(paragrafo, tamanho)
+        return {
+            "linhas": linhas,
+            "alinhamento": paragrafo["alinhamento"],
+            "antes": paragrafo["antes"] / 20,
+            "depois": paragrafo["depois"] / 20,
+            "recuo": paragrafo["recuo"],
+            "altura_linha": altura_linha,
+            "altura": paragrafo["antes"] / 20 + max(len(linhas), 1) * altura_linha + paragrafo["depois"] / 20,
+            "largura": largura,
+        }
+
+    def _runs(self, elemento):
+        for filho in elemento:
+            tag = etree.QName(filho).localname
+            if tag == "r":
+                yield filho
+            elif tag in {"hyperlink", "ins"}:
+                yield from self._runs(filho)
+
+    def _quebrar(self, trechos, largura: float) -> list[list]:
+        linhas = [[]]
+        usado = 0.0
+        for texto, fmt in trechos:
+            partes = texto.split("\n")
+            for indice, parte in enumerate(partes):
+                if indice:
+                    linhas.append([])
+                    usado = 0.0
+                for token in re.findall(r"\s+|\S+", parte):
+                    ocupacao = self._medir(token, fmt)
+                    if linhas[-1] and token.strip() and usado + ocupacao > largura + 0.5:
+                        linhas.append([])
+                        usado = 0.0
+                        if not token.strip():
+                            continue
+                    linhas[-1].append((token, fmt, ocupacao))
+                    usado += ocupacao
+        return linhas
+
+    def _medir(self, texto: str, fmt: dict) -> float:
+        caminho = _caminho_fonte(fmt["fonte"], fmt["negrito"], fmt["italico"])
+        chave = str(caminho) if caminho is not None else "helv"
+        if chave not in self.medidores:
+            try:
+                self.medidores[chave] = (
+                    pymupdf.Font(fontfile=str(caminho)) if caminho is not None else pymupdf.Font("helv")
+                )
+            except Exception:
+                self.medidores[chave] = pymupdf.Font("helv")
+        return self.medidores[chave].text_length(texto, fontsize=fmt["tamanho"])
+
+    def _desenhar_paragrafo(self, pagina, bloco: dict, x: float, y: float) -> None:
+        y += bloco["antes"]
+        for indice, linha in enumerate(bloco["linhas"]):
+            self._desenhar_linha(
+                pagina,
+                linha,
+                x + (bloco["recuo"] if indice == 0 else 0),
+                y,
+                bloco["largura"] - (bloco["recuo"] if indice == 0 else 0),
+                bloco["alinhamento"],
+                bloco["altura_linha"],
+                indice == len(bloco["linhas"]) - 1,
+            )
+            y += bloco["altura_linha"]
+
+    def _desenhar_linha(self, pagina, linha, x, y, largura, alinhamento, altura_linha, ultima) -> None:
+        if not linha:
+            return
+        usada = sum(item[2] for item in linha)
+        escala = min(1.0, largura / usada) if usada > largura > 0 else 1.0
+        if alinhamento in {"center", "right"} or (alinhamento in {"both", "justify"} and ultima):
+            folga = max(largura - usada, 0)
+            cursor = x + (folga / 2 if alinhamento == "center" else folga if alinhamento == "right" else 0)
+            extra = 0
+        elif alinhamento in {"both", "justify"}:
+            espacos = sum(token.count(" ") for token, _, _ in linha)
+            extra = max(largura - usada, 0) / espacos if espacos else 0
+            cursor = x
+        else:
+            cursor = x
+            extra = 0
+        tamanho = max(fmt["tamanho"] for _, fmt, _ in linha)
+        baseline = y + min(tamanho * 0.82, altura_linha * 0.86)
+        for token, fmt, ocupacao in linha:
+            nome = _registrar_fonte(pagina, self.fontes, fmt["fonte"], fmt["negrito"], fmt["italico"])
+            pagina.insert_text(
+                (cursor, baseline),
+                token,
+                fontsize=fmt["tamanho"] * escala,
+                fontname=nome,
+                color=fmt["cor"],
+            )
+            cursor += (ocupacao * escala) + (token.count(" ") * extra)
+
+    def _preparar_tabela(self, tabela) -> dict:
+        grade = []
+        grelha = tabela.find(_w("tblGrid"))
+        if grelha is not None:
+            for coluna in grelha.findall(_w("gridCol")):
+                grade.append(_twips(_attr(coluna, "w") or 0))
+        propriedades = tabela.find(_w("tblPr"))
+        recuo = 0.0
+        margens = {"top": 1.0, "bottom": 1.0, "left": 3.6, "right": 3.6}
+        if propriedades is not None:
+            indentacao = propriedades.find(_w("tblInd"))
+            if indentacao is not None and _attr(indentacao, "w"):
+                recuo = _twips(_attr(indentacao, "w"))
+            margem = propriedades.find(_w("tblCellMar"))
+            if margem is not None:
+                for tag, lado in (("top", "top"), ("bottom", "bottom"), ("start", "left"), ("left", "left"), ("end", "right"), ("right", "right")):
+                    item = margem.find(_w(tag))
+                    if item is not None and _attr(item, "w"):
+                        margens[lado] = _twips(_attr(item, "w"))
+        linhas = []
+        for tr in tabela.findall(_w("tr")):
+            altura, regra = 0.0, "atLeast"
+            tr_pr = tr.find(_w("trPr"))
+            if tr_pr is not None and tr_pr.find(_w("trHeight")) is not None:
+                marca = tr_pr.find(_w("trHeight"))
+                if _attr(marca, "val"):
+                    altura = _twips(_attr(marca, "val"))
+                regra = _attr(marca, "hRule") or "atLeast"
+            celulas = []
+            coluna = 0
+            for tc in tr.findall(_w("tc")):
+                tc_pr = tc.find(_w("tcPr"))
+                alcance = 1
+                vmerge = None
+                valign = "top"
+                if tc_pr is not None:
+                    span = tc_pr.find(_w("gridSpan"))
+                    if span is not None and _attr(span, "val"):
+                        alcance = int(_attr(span, "val"))
+                    mescla = tc_pr.find(_w("vMerge"))
+                    if mescla is not None:
+                        vmerge = "restart" if _attr(mescla, "val") == "restart" else "continue"
+                    vertical = tc_pr.find(_w("vAlign"))
+                    if vertical is not None and _attr(vertical, "val"):
+                        valign = _attr(vertical, "val")
+                largura = sum(grade[coluna : coluna + alcance]) if grade else 80.0
+                interna = max(largura - margens["left"] - margens["right"], 8)
+                paragrafos = [self._preparar_paragrafo(p, interna) for p in tc.findall(_w("p"))]
+                figuras = []
+                for paragrafo in tc.findall(_w("p")):
+                    figuras.extend(_ancoras(paragrafo))
+                celulas.append(
+                    {
+                        "alcance": alcance,
+                        "vmerge": vmerge,
+                        "valign": valign,
+                        "bordas": _bordas_celula(tc_pr),
+                        "paragrafos": paragrafos,
+                        "figuras": figuras,
+                        "conteudo": sum(item["altura"] for item in paragrafos),
+                    }
+                )
+                coluna += alcance
+            linhas.append({"altura": altura, "regra": regra, "celulas": celulas})
+        self._ajustar_alturas(linhas, margens)
+        return {"recuo": recuo, "margens": margens, "grade": grade, "linhas": linhas, "altura": sum(item["altura"] for item in linhas)}
+
+    def _ajustar_alturas(self, linhas, margens) -> None:
+        for indice, linha in enumerate(linhas):
+            coluna = 0
+            for celula in linha["celulas"]:
+                if celula["vmerge"] == "continue":
+                    coluna += celula["alcance"]
+                    continue
+                repetidas = _linhas_verticais(linhas, indice, coluna)
+                necessario = celula["conteudo"] + margens["top"] + margens["bottom"]
+                if repetidas == 1 and linha["regra"] != "exact":
+                    linha["altura"] = max(linha["altura"], necessario)
+                elif repetidas > 1:
+                    total = sum(linhas[indice + salto]["altura"] for salto in range(repetidas))
+                    if necessario > total:
+                        extra = necessario - total
+                        for salto in range(repetidas - 1, -1, -1):
+                            alvo = linhas[indice + salto]
+                            if alvo["regra"] != "exact":
+                                alvo["altura"] += extra
+                                break
+                coluna += celula["alcance"]
+            if linha["altura"] <= 0:
+                linha["altura"] = 14
+
+    def _desenhar_tabela(self, pagina, tabela: dict, x: float, y: float) -> float:
+        margens = tabela["margens"]
+        origem_y = y
+        arestas = {}
+        for indice, linha in enumerate(tabela["linhas"]):
+            cursor = x + tabela["recuo"]
+            coluna = 0
+            for celula in linha["celulas"]:
+                largura = sum(tabela["grade"][coluna : coluna + celula["alcance"]]) if tabela["grade"] else 80
+                if celula["vmerge"] == "continue":
+                    cursor += largura
+                    coluna += celula["alcance"]
+                    continue
+                repetidas = _linhas_verticais(tabela["linhas"], indice, coluna)
+                altura = sum(tabela["linhas"][indice + salto]["altura"] for salto in range(repetidas))
+                retangulo = pymupdf.Rect(cursor, y, cursor + largura, y + altura)
+                livre = altura - margens["top"] - margens["bottom"] - celula["conteudo"]
+                if celula["valign"] == "center":
+                    texto_y = y + margens["top"] + max(livre, 0) / 2
+                elif celula["valign"] == "bottom":
+                    texto_y = y + altura - margens["bottom"] - celula["conteudo"]
+                else:
+                    texto_y = y + margens["top"]
+                for paragrafo in celula["paragrafos"]:
+                    self._desenhar_paragrafo(pagina, paragrafo, cursor + margens["left"], texto_y)
+                    texto_y += paragrafo["altura"]
+                for figura in celula["figuras"]:
+                    dados = self.imagens.get(figura["id"] or "")
+                    if not dados or figura["largura"] < 1 or figura["altura"] < 1:
+                        continue
+                    area = pymupdf.Rect(
+                        retangulo.x0 + figura["x"],
+                        retangulo.y0 + figura["y"],
+                        retangulo.x0 + figura["x"] + figura["largura"],
+                        retangulo.y0 + figura["y"] + figura["altura"],
+                    )
+                    pagina.insert_image(area, stream=dados, keep_proportion=True)
+                for lado, borda in celula["bordas"].items():
+                    chave = _chave_aresta(lado, retangulo)
+                    if chave not in arestas or borda["sz"] >= arestas[chave][1]["sz"]:
+                        arestas[chave] = (lado, borda, retangulo)
+                cursor += largura
+                coluna += celula["alcance"]
+            y += linha["altura"]
+        for lado, borda, retangulo in arestas.values():
+            _tracar_borda(pagina, lado, retangulo, borda)
+        return origem_y + tabela["altura"]
+
+    def _desenhar_rodape(self, pagina, paragrafos) -> None:
+        if not paragrafos:
+            return
+        self.pagina = pagina
+        self.fontes = {}
+        blocos = [self._preparar_paragrafo(item, self._largura_util()) for item in paragrafos]
+        y = self.caixa["altura"] - self.caixa["rodape"] - sum(item["altura"] for item in blocos)
+        for bloco in blocos:
+            self._desenhar_paragrafo(pagina, bloco, self.caixa["esquerda"], y)
+            y += bloco["altura"]
+
+
+def fmt_padrao(rpr: dict) -> float:
+    return float(rpr.get("tamanho") or 12)
+
+
+def _altura_da_linha(paragrafo: dict, tamanho: float) -> float:
+    linha = paragrafo.get("linha")
+    regra = paragrafo.get("regra") or "auto"
+    if linha and regra == "exact":
+        return max(linha / 20, 8)
+    if linha and regra == "auto":
+        return max(tamanho * (linha / 240), 8)
+    if linha and regra == "atLeast":
+        return max(tamanho * 1.12, linha / 20)
+    return max(tamanho * 1.12, 8)
+
+
+def _linhas_verticais(linhas, indice: int, coluna: int) -> int:
+    total = 1
+    for seguinte in linhas[indice + 1 :]:
+        cursor = 0
+        continua = False
+        for celula in seguinte["celulas"]:
+            if cursor == coluna and celula["vmerge"] == "continue":
+                continua = True
+                break
+            cursor += celula["alcance"]
+        if not continua:
+            break
+        total += 1
+    return total
+
+
+def _chave_aresta(lado: str, retangulo) -> tuple:
+    if lado in {"top", "bottom"}:
+        y = retangulo.y0 if lado == "top" else retangulo.y1
+        return ("h", round(y, 1), round(retangulo.x0, 1), round(retangulo.x1, 1))
+    x = retangulo.x0 if lado == "left" else retangulo.x1
+    return ("v", round(x, 1), round(retangulo.y0, 1), round(retangulo.y1, 1))
+
+
+def _tracar_borda(pagina, lado: str, retangulo, borda: dict) -> None:
+    estilo = borda["estilo"]
+    cor = borda["cor"]
+    total = max(borda["sz"] / 8, 0.5)
+    if estilo == "double":
+        for deslocamento in (-0.7, 0.7):
+            _traco(pagina, lado, retangulo, cor, 0.65, deslocamento)
         return
-    y = pagina.rect.height - float(secao.bottom_margin.pt) + 6
-    pagina.draw_line(
-        (float(secao.left_margin.pt), y),
-        (pagina.rect.width - float(secao.right_margin.pt), y),
-        color=(0, 0, 0),
-        width=0.6,
-    )
-    fontname = _registrar_fonte(pagina, fontes, "Arial", False)
-    pagina.insert_textbox(
-        pymupdf.Rect(float(secao.left_margin.pt), y + 2, pagina.rect.width - float(secao.right_margin.pt), y + 28),
-        "\n".join(textos),
-        fontsize=9,
-        fontname=fontname,
-        align=pymupdf.TEXT_ALIGN_CENTER,
-        color=(0, 0, 0),
-    )
+    if estilo in {"thinThickSmallGap", "thickThinSmallGap"}:
+        fino = max(total * 0.18, 0.45)
+        vao = max(total * 0.22, 0.55)
+        grosso = max(total - fino - vao, 0.9)
+        partes = (
+            [(grosso, False), (vao, True), (fino, False)]
+            if estilo == "thickThinSmallGap"
+            else [(fino, False), (vao, True), (grosso, False)]
+        )
+        cursor = 0.0
+        for parte, intervalo in partes:
+            if intervalo:
+                cursor += parte
+                continue
+            _traco(pagina, lado, retangulo, cor, parte, cursor + parte / 2)
+            cursor += parte
+        return
+    _traco(pagina, lado, retangulo, cor, max(total, 0.55), max(total, 0.55) / 2)
+
+
+def _traco(pagina, lado: str, retangulo, cor, largura: float, deslocamento: float) -> None:
+    extra = max(deslocamento, 0)
+    if lado == "top":
+        y = retangulo.y0 + deslocamento
+        inicio, fim = (retangulo.x0 - extra, y), (retangulo.x1 + extra, y)
+    elif lado == "bottom":
+        y = retangulo.y1 - deslocamento
+        inicio, fim = (retangulo.x0 - extra, y), (retangulo.x1 + extra, y)
+    elif lado == "left":
+        x = retangulo.x0 + deslocamento
+        inicio, fim = (x, retangulo.y0 - extra), (x, retangulo.y1 + extra)
+    else:
+        x = retangulo.x1 - deslocamento
+        inicio, fim = (x, retangulo.y0 - extra), (x, retangulo.y1 + extra)
+    pagina.draw_line(inicio, fim, color=cor, width=largura, lineCap=1)
 
 
 def _linhas_office(origem: Path, tipo: str) -> list[str]:
